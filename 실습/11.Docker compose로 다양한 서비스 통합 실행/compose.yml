@@ -1,0 +1,79 @@
+# ================================================
+# Docker Compose 설정 파일
+# ================================================
+# 이 파일은 Flask 웹 애플리케이션과 MySQL 데이터베이스를 함께 실행하는
+# 멀티 컨테이너 Docker 환경을 정의합니다.
+#
+# 실행 명령어: docker-compose up
+# 중지 명령어: docker-compose down
+
+services:
+  # ================================================
+  # Flask 웹 애플리케이션 서비스
+  # ================================================
+  app:
+    build:
+      # 현재 디렉토리의 Dockerfile을 사용하여 이미지 빌드
+      context: .
+
+    ports:
+      # 호스트의 포트 5001 → 컨테이너의 포트 5000으로 매핑
+      # 웹 브라우저에서 localhost:5001로 접근 가능
+      - "5001:5000"
+
+    depends_on:
+      # db 서비스가 먼저 시작된 후에 app 서비스가 시작되도록 순서 지정
+      - db
+
+    # 환경 변수: Flask 앱에서 데이터베이스에 연결하기 위해 필요한 설정
+    environment:
+      - MYSQL_HOST=db          # Docker 네트워크 내에서 MySQL 서비스의 호스트명
+      - MYSQL_USER=root        # MySQL 사용자명
+      - MYSQL_PASSWORD=password # MySQL 루트 사용자 비밀번호
+      - MYSQL_DATABASE=exampledb # 사용할 데이터베이스명
+
+  # ================================================
+  # MySQL 데이터베이스 서비스
+  # ================================================
+  db:
+    # Docker Hub의 공식 MySQL 8.0 이미지 사용
+    image: mysql:8.0
+
+    # MySQL 초기 설정 환경 변수
+    environment:
+      MYSQL_ROOT_PASSWORD: password  # 루트 사용자 비밀번호 설정
+      MYSQL_DATABASE: exampledb      # 초기 데이터베이스 자동 생성
+
+    ports:
+      # 호스트의 포트 3306 → 컨테이너의 포트 3306으로 매핑
+      # 호스트 환경에서 MySQL 클라이언트로 접근 가능
+      - "3306:3306"
+
+    volumes:
+      # db_data 볼륨을 MySQL 데이터 디렉토리에 마운트
+      # 컨테이너가 종료되어도 데이터가 호스트에 지속됨 (데이터 영속성)
+      - db_data:/var/lib/mysql
+
+    # 서비스 상태 확인 설정
+    # Flask 앱이 연결하기 전에 MySQL이 완전히 준비되었는지 확인
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "--silent"]  # MySQL 응답 확인
+      interval: 5s     # 5초마다 상태 확인
+      timeout: 10s     # 10초 내에 응답하지 않으면 실패 판정
+      retries: 3       # 최대 3회까지 재시도
+
+# ================================================
+# 볼륨(Storage) 정의
+# ================================================
+volumes:
+  # MySQL 데이터 영속성 보장을 위한 명명 볼륨
+  # Docker에서 자동으로 관리하는 호스트 디렉토리에 저장됨
+  db_data:
+
+# ================================================
+# 문제 해결 (Troubleshooting)
+# ================================================
+# 만약 문제가 발생하면 다음 명령어로 모든 볼륨과 이미지를 제거합니다:
+# docker-compose down --rmi all --volumes --remove-orphans
+#
+# 주의: 이 명령어는 db_data 볼륨의 모든 데이터를 삭제하므로 조심하세요!
